@@ -26,20 +26,23 @@
 # either expressed or implied, of Tadas Vilkeliskis.
 
 from time import time
+from cPickle import dumps, loads
 
 class SimpleCache(object):
-    def __init__(self, default_lifetime):
+    def __init__(self, default_lifetime, default_serialize=False):
         """
         Construct a cache.
 
         Keyword arguments:
         default_lifetime -- datetime.timedelta object used when lifetime in put_item() is None.
+        default_serialize -- serialize data. Used when not specified in put_item().
         """
         self.default_lifetime = default_lifetime
+        self.default_serialize = default_serialize
         self.cache = dict()
 
 
-    def put_item(self, name, data, lifetime=None):
+    def put_item(self, name, data, lifetime=None, serialize=None):
         """
         Place date into the cache.
 
@@ -47,14 +50,22 @@ class SimpleCache(object):
         name -- the name of the data.
         data -- the data to be placed into cache.
         lifetime -- datetime.timedelta object (default None).
+        serialize -- whether data should be serialized before putting it into cache (uses default_serialize if None).
         """
         self.cache[name] = dict()
-        self.cache[name]['data'] = data
         self.cache[name]['update_time'] = time()
+        if serialize == None:
+            self.cache[name]['serialize'] = self.default_serialize
+        else:
+            self.cache[name]['serialize'] = serialize
         if lifetime != None:
             self.cache[name]['lifetime'] = lifetime
         else:
             self.cache[name]['lifetime'] = self.default_lifetime
+        if serialize:
+            self.cache[name]['data'] = dumps(data)
+        else:
+            self.cache[name]['data'] = data
 
 
     def get_item(self, name):
@@ -72,7 +83,10 @@ class SimpleCache(object):
                 delta = (lifetime.microseconds + (lifetime.seconds + lifetime.days * 24 * 3600) * 10**6) / 10**6
 
             if self.cache[name]['update_time'] + delta - time() > 0:
-                return self.cache[name]['data']
+                if self.cache[name]['serialize']:
+                    return loads(self.cache[name]['data'])
+                else:
+                    return self.cache[name]['data']
             else:
                 del self.cache[name]
                 return None
